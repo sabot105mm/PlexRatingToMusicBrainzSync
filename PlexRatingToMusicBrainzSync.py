@@ -4,11 +4,11 @@ from ollama import chat
 
 # Plex API setup
 PLEX_URL = "http://192.168.253.100:32400"
-PLEX_TOKEN = "wb2mJze72_yKA4ewCTSS"
+PLEX_TOKEN = ""
 
 # MusicBrainz API setup
-MUSICBRAINZ_USER = "sabot1o5mm"
-MUSICBRAINZ_PASSWORD = "Y5%6YP2jx7"
+MUSICBRAINZ_USER = ""
+MUSICBRAINZ_PASSWORD = ""
 USER_AGENT = "PlexRatingToMusicBrainzSync/1.0"
 
 # Initialize MusicBrainz API
