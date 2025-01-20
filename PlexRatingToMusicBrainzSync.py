@@ -1,16 +1,14 @@
 from plexapi.server import PlexServer
 import musicbrainzngs
-import subprocess
 from ollama import chat
-import json
 
 # Plex API setup
-PLEX_URL = "http://192.168.1.1:32400"
-PLEX_TOKEN = ""
+PLEX_URL = "http://192.168.253.100:32400"
+PLEX_TOKEN = "wb2mJze72_yKA4ewCTSS"
 
 # MusicBrainz API setup
-MUSICBRAINZ_USER = ""
-MUSICBRAINZ_PASSWORD = ""
+MUSICBRAINZ_USER = "sabot1o5mm"
+MUSICBRAINZ_PASSWORD = "Y5%6YP2jx7"
 USER_AGENT = "PlexRatingToMusicBrainzSync/1.0"
 
 # Initialize MusicBrainz API
@@ -49,23 +47,40 @@ def select_musicbrainz_track(matches, track_title, track_artist):
         artist = ", ".join(artist.get("name", "Unknown Artist") for artist in artist_credit if isinstance(artist, dict))
         album = match.get("release-list", [{}])[0].get("title", "Unknown Album")
         id = match.get("id", "Unknown ID")
-        formatted_matches.append(f"{i}. {title} by {artist} (Album: {album}, ID: {id})")
-        print(formatted_matches[-1])
+        formatted_matches.append(f"{i}. Title: {title} Artist: {artist} (Album: {album}, IDcode: {id})")
 
     # Query Ollama for additional guidance
-    print(f"Querying local LLM for additional suggestions for {track_title} by {track_artist}...")
-    prompt = (f"find this track in top matches or just guess. respond with Only the ID code: Title: {track_title}, Artist: {track_artist}, Album: {album}."
+    print(f"Querying local LLM for additional suggestions for Track: {track_title} Artist: {track_artist} Album {album}...")
+    prompt = (f"find this Title: from the list. if the Artist: and Album: are the same it is very likely a match especially if the Title: is similar, respond with the listed IDcode.. if you dont know say 0. make no other comments.: Title: {track_title}, Artist: {track_artist}, Album: {album}."
               f"Here are the top matches from MusicBrainz:\n"
               f"{chr(10).join(formatted_matches)}")
+    print(f"{chr(10).join(formatted_matches)}")
     llm_response = query_ollama_llm(prompt)
     print(f"LLM Response: {llm_response}")
 
-    # Parse LLM response for MusicBrainz ID
+# Parse LLM response for MusicBrainz ID
     for match in matches:
         if match["id"] in llm_response:
             return match["id"]
 
-    return None
+    # Prompt user for manual selection if no match from LLM
+    print("Unable to determine the correct match from the LLM response.")
+    print("Please select the correct track from the list:")
+    for i, match in enumerate(matches, start=1):
+        print(f"{i}. {match.get('title', 'Unknown Title')} by {', '.join(artist.get('name', 'Unknown Artist') for artist in match.get('artist-credit', []) if isinstance(artist, dict))}")
+
+    while True:
+        try:
+            user_choice = int(input("Enter the number of the correct match (or 0 to skip): "))
+            if user_choice == 0:
+                print("Skipping this track.")
+                return None
+            elif 1 <= user_choice <= len(matches):
+                return matches[user_choice - 1]["id"]
+            else:
+                print("Invalid choice. Please try again.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
 
 # Function to query local Ollama LLM
 def query_ollama_llm(prompt):
@@ -104,12 +119,16 @@ def sync_plex_ratings_to_musicbrainz():
                             # MusicBrainz ratings are from 0 to 100, at intervals of 20. Scale appropriately
                             musicbrainz_rating = max(0, min(100, int(round(rating * 10))))
                             recording_ratings[recording_id] = musicbrainz_rating
-                            print(recording_ratings)
                     else:
-                        print(f"No match found for {track_title} by {track.artist().title}. Querying local LLM for guidance...")
-                        prompt = f"Suggest metadata or similar tracks for: Title: {track_title}, Artist: {track.artist().title}"
-                        llm_response = query_ollama_llm(prompt)
-                        print(f"LLM Response: {llm_response}")
+                        print("0. Skip this track")
+                        while True:
+                            try:
+                                choice = int(input("Enter your choice (0 to skip): "))
+                                if 0 <= choice <= len(matches):
+                                    return matches[choice - 1]["id"] if choice != 0 else None
+                            except ValueError:
+                                pass
+                            print("Invalid choice. Please try again.")
 
     # Submit all ratings in one request
     if recording_ratings:
